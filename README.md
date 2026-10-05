@@ -87,6 +87,24 @@ notetaking-app/
 5. **Access the application**
    - Open your browser and go to `http://localhost:5001`
 
+### Translation setup
+
+The title, content, and whole-note translation buttons use DeepSeek through
+OpenRouter. Create an OpenRouter API key and put it in the root `.env` file:
+
+```dotenv
+OPENROUTER_API_KEY=your-openrouter-api-key
+```
+
+The repository ignores `.env`, so the key will not be committed. `.env.example`
+shows the expected format. The app loads `.env` when it starts; restart it after
+editing the file. Translation uses `nvidia/nemotron-3.5-lightning:free` with
+reasoning enabled by default. To select another model available to your
+OpenRouter account, set `OPENROUTER_MODEL` in `.env`. Translation detects
+English or Simplified Chinese and translates to the other language. The API key
+stays on the server and is never sent to the browser. Free model availability
+and rate limits are controlled by OpenRouter.
+
 ## 📡 API Endpoints
 
 ### Notes API
@@ -96,6 +114,11 @@ notetaking-app/
 - `PUT /api/notes/<id>` - Update a note
 - `DELETE /api/notes/<id>` - Delete a note
 - `GET /api/notes/search?q=<query>` - Search notes
+
+### Translation API
+- `POST /api/translate` - Translate a title, content, or both. The JSON body
+  includes `field` (`title`, `content`, or `all`) and the corresponding text
+  field(s). It returns the translated field(s).
 
 ### Request/Response Format
 ```json
@@ -205,4 +228,3 @@ Potential improvements for future versions:
 ---
 
 **Built with ❤️ using Flask, SQLite, and modern web technologies**
-
