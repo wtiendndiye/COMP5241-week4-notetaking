@@ -154,19 +154,26 @@
         }
 
         .editor-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            display: block;
             margin-bottom: 20px;
         }
 
         .editor-title {
             font-size: 1.5rem;
             color: #333;
+            margin-bottom: 12px;
         }
 
         .editor-actions {
             display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .editor-action-row {
+            display: flex;
+            flex-wrap: wrap;
             gap: 10px;
         }
 
@@ -188,6 +195,22 @@
         .btn-save:hover {
             background: #218838;
             transform: translateY(-1px);
+        }
+
+        .btn-translate {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-translate:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            cursor: wait;
+            opacity: 0.65;
+            transform: none;
         }
 
         .btn-delete {
@@ -344,8 +367,15 @@
                 <div class="editor-header">
                     <h2 class="editor-title" id="editorTitle">Select a note to edit</h2>
                     <div class="editor-actions" id="editorActions" style="display: none;">
-                        <button class="btn btn-save" id="saveBtn">💾 Save</button>
-                        <button class="btn btn-delete" id="deleteBtn">🗑️ Delete</button>
+                        <div class="editor-action-row">
+                            <button class="btn btn-save" id="saveBtn">💾 Save</button>
+                            <button class="btn btn-delete" id="deleteBtn">🗑️ Delete</button>
+                        </div>
+                        <div class="editor-action-row">
+                            <button class="btn btn-translate" id="translateTitleBtn">🌐 Translate Title</button>
+                            <button class="btn btn-translate" id="translateContentBtn">🌐 Translate Content</button>
+                            <button class="btn btn-translate" id="translateAllBtn">🌐 Translate All</button>
+                        </div>
                     </div>
                 </div>
 
@@ -388,6 +418,9 @@
             bindEvents() {
                 document.getElementById('newNoteBtn').addEventListener('click', () => this.createNewNote());
                 document.getElementById('saveBtn').addEventListener('click', () => this.saveNote());
+                document.getElementById('translateTitleBtn').addEventListener('click', () => this.translate('title'));
+                document.getElementById('translateContentBtn').addEventListener('click', () => this.translate('content'));
+                document.getElementById('translateAllBtn').addEventListener('click', () => this.translate('all'));
                 document.getElementById('deleteBtn').addEventListener('click', () => this.deleteNote());
                 document.getElementById('searchBox').addEventListener('input', (e) => this.searchNotes(e.target.value));
                 
@@ -550,6 +583,64 @@
                 }
             }
 
+            async translate(field) {
+                if (!this.currentNote) return;
+
+                const titleInput = document.getElementById('noteTitle');
+                const contentInput = document.getElementById('noteContent');
+                const text = {
+                    title: titleInput.value,
+                    content: contentInput.value
+                };
+                if ((field === 'title' && !text.title.trim()) ||
+                    (field === 'content' && !text.content.trim()) ||
+                    (field === 'all' && !text.title.trim() && !text.content.trim())) {
+                    this.showMessage('Enter text in the field you want to translate.', 'error');
+                    return;
+                }
+
+                const buttons = ['translateTitleBtn', 'translateContentBtn', 'translateAllBtn']
+                    .map(id => document.getElementById(id));
+                const inputs = [titleInput, contentInput];
+                inputs.forEach(input => input.disabled = true);
+                buttons.forEach(button => {
+                    button.disabled = true;
+                    button.dataset.originalText = button.textContent;
+                    button.textContent = 'Translating...';
+                });
+                this.showMessage('Translating with OpenRouter...', 'loading');
+
+                try {
+                    const response = await fetch('/api/translate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...text, field })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Translation failed');
+                    }
+
+                    if (result.title !== undefined) {
+                        titleInput.value = result.title;
+                        titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    if (result.content !== undefined) {
+                        contentInput.value = result.content;
+                        contentInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    this.showMessage('Translation complete.', 'success');
+                } catch (error) {
+                    this.showMessage(`Error translating text: ${error.message}`, 'error');
+                } finally {
+                    inputs.forEach(input => input.disabled = false);
+                    buttons.forEach(button => {
+                        button.disabled = false;
+                        button.textContent = button.dataset.originalText;
+                    });
+                }
+            }
+
             async deleteNote() {
                 if (!this.currentNote || !this.currentNote.id) return;
 
@@ -637,4 +728,3 @@
     </script>
 </body>
 </html>
-
