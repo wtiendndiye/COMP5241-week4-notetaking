@@ -102,11 +102,11 @@ OPENROUTER_API_KEY=your-openrouter-api-key
 The repository ignores `.env`, so the key will not be committed. `.env.example`
 shows the expected format. The app loads `.env` when it starts; restart it after
 editing the file. Translation uses `nvidia/nemotron-3.5-lightning:free` with
-reasoning enabled by default. To select another model available to your
-OpenRouter account, set `OPENROUTER_MODEL` in `.env`. Translation detects
-English or Simplified Chinese and translates to the other language. The API key
-stays on the server and is never sent to the browser. Free model availability
-and rate limits are controlled by OpenRouter.
+reasoning disabled for faster translation responses. To select another model
+available to your OpenRouter account, set `OPENROUTER_MODEL` in `.env`.
+Translation detects English or Simplified Chinese and translates to the other
+language. The API key stays on the server and is never sent to the browser.
+Free model availability and rate limits are controlled by OpenRouter.
 
 ### Deploying to Vercel
 
