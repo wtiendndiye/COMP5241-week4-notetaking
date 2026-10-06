@@ -9,31 +9,53 @@ translation_bp = Blueprint('translation', __name__)
 
 OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 DEFAULT_MODEL = 'nvidia/nemotron-3.5-lightning:free'
+PROVIDER_TIMEOUT_SECONDS = 35
 
 
 def translate_texts(texts, api_key, model):
     system_message = (
-        'You are a professional translator. Detect whether each input is English or '
-        'Simplified Chinese and translate it into the other language. Preserve the '
-        'meaning, tone, formatting, and proper names. Return only the translation. '
-        'For a JSON object input, return a JSON object with the same keys and only '
-        'the translated values.'
+        'You are a professional English and Simplified Chinese translator. Translate '
+        'the supplied text into the explicitly requested target language. Preserve '
+        'meaning, tone, formatting, and proper names. Output only the translation; '
+        'do not add a language label, explanation, quotation marks, or the source text.'
     )
-    prompt = json.dumps(texts, ensure_ascii=False) if len(texts) > 1 else next(iter(texts.values()))
+    targets = {
+        key: (
+            'English'
+            if any('\u3400' <= character <= '\u9fff' for character in text)
+            else 'Simplified Chinese'
+        )
+        for key, text in texts.items()
+    }
     messages = [
         {'role': 'system', 'content': system_message},
-        {'role': 'user', 'content': prompt},
     ]
     payload = {
         'model': model,
         'messages': messages,
-        'reasoning': {'enabled': True},
+        'reasoning': {'enabled': False},
     }
-    if len(texts) > 1:
-        messages[1]['content'] = (
-            'Translate each value in this JSON object and return a JSON object '
-            'with the same keys:\n' + prompt
-        )
+    if len(texts) == 1:
+        key, text = next(iter(texts.items()))
+        messages.append({
+            'role': 'user',
+            'content': (
+                'Translate this text into {}. Return only the translated text.\n\n{}'
+            ).format(targets[key], text),
+        })
+    else:
+        prompt_data = {
+            key: {'text': text, 'target_language': targets[key]}
+            for key, text in texts.items()
+        }
+        messages.append({
+            'role': 'user',
+            'content': (
+                'Translate each text into its target_language. Return only a JSON '
+                'object with the original keys and translated string values; no '
+                'additional keys or explanation.\n{}'
+            ).format(json.dumps(prompt_data, ensure_ascii=False)),
+        })
 
     req = Request(
         OPENROUTER_URL,
@@ -46,7 +68,7 @@ def translate_texts(texts, api_key, model):
         },
         method='POST',
     )
-    with urlopen(req, timeout=45) as response:
+    with urlopen(req, timeout=PROVIDER_TIMEOUT_SECONDS) as response:
         provider_response = json.loads(response.read().decode('utf-8'))
 
     content = provider_response['choices'][0]['message']['content']
@@ -55,13 +77,31 @@ def translate_texts(texts, api_key, model):
     if len(texts) == 1:
         return {next(iter(texts)): content.strip()}
 
-    translated = json.loads(content)
-    if not isinstance(translated, dict) or any(
-        key not in translated or not isinstance(translated[key], str)
-        for key in texts
-    ):
+    try:
+        translated = json.loads(content)
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        translated = None
+        for index, character in enumerate(content):
+            if character == '{':
+                try:
+                    translated, _ = decoder.raw_decode(content[index:])
+                    break
+                except json.JSONDecodeError:
+                    continue
+
+    if not isinstance(translated, dict):
         raise ValueError('Translation provider returned an invalid translation object')
-    return {key: translated[key] for key in texts}
+
+    result = {}
+    for key in texts:
+        value = translated.get(key)
+        if isinstance(value, dict):
+            value = value.get('text')
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError('Translation provider omitted a translated field')
+        result[key] = value.strip()
+    return result
 
 
 @translation_bp.route('/translate', methods=['POST'])
