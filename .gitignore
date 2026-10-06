@@ -64,6 +64,9 @@ env/
 env.bak/
 venv.bak/
 
+# Vercel
+.vercel/
+
 # Editor directories and files
 .idea/
 .vscode/
@@ -111,3 +114,5 @@ Thumbs.db
 .coverage
 coverage.xml
 *.prof
+.neon
+node_modules/
