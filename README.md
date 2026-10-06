@@ -30,7 +30,8 @@ The application is deployed and accessible at: **https://3dhkilc88dkk.manus.spac
 - **Flask-CORS**: Cross-origin resource sharing support
 
 ### Database
-- **SQLite**: Lightweight, file-based database for data persistence
+- **SQLite**: Local development database
+- **Neon PostgreSQL**: External persistent database for Vercel deployment
 
 ## 📁 Project Structure
 
@@ -43,14 +44,15 @@ notetaking-app/
 │   ├── routes/
 │   │   ├── user.py          # User API routes (template)
 │   │   └── note.py          # Note API endpoints
-│   ├── static/
-│   │   ├── index.html       # Frontend application
-│   │   └── favicon.ico      # Application icon
-│   ├── database/
-│   │   └── app.db           # SQLite database file
 │   └── main.py              # Flask application entry point
+├── public/
+│   ├── index.html           # Frontend application (served by Vercel CDN)
+│   └── favicon.ico          # Application icon
+├── database/
+│   └── app.db               # Local SQLite database (ignored by Git)
 ├── venv/                    # Python virtual environment
 ├── requirements.txt         # Python dependencies
+├── vercel.json              # Vercel function configuration
 └── README.md               # This file
 ```
 
@@ -90,7 +92,8 @@ notetaking-app/
 ### Translation setup
 
 The title, content, and whole-note translation buttons use DeepSeek through
-OpenRouter. Create an OpenRouter API key and put it in the root `.env` file:
+OpenRouter. For local development, create an OpenRouter API key and put it in
+the root `.env` file:
 
 ```dotenv
 OPENROUTER_API_KEY=your-openrouter-api-key
@@ -104,6 +107,43 @@ OpenRouter account, set `OPENROUTER_MODEL` in `.env`. Translation detects
 English or Simplified Chinese and translates to the other language. The API key
 stays on the server and is never sent to the browser. Free model availability
 and rate limits are controlled by OpenRouter.
+
+### Deploying to Vercel
+
+The app uses SQLite locally and Neon PostgreSQL in deployment. Create a Neon
+project in the Neon Console, then copy its connection string from the
+**Connect** dialog. Use the pooled connection string for Vercel serverless
+deployments and ensure SSL is enabled. Never commit database credentials or
+import `.env` into Vercel.
+
+1. Push the project to GitHub and import the repository in Vercel.
+2. Set the **Framework Preset** to **Flask** (or let Vercel detect Flask).
+   Keep the **Root Directory** at the repository root. Leave **Build Command**,
+   **Output Directory**, and **Install Command** at their defaults/overrides
+   disabled; Vercel detects `src/main.py` and installs `requirements.txt`.
+3. In **Settings → Environment Variables**, add these variables for Production
+   (and Preview if needed):
+   - `DATABASE_URL` — Neon PostgreSQL connection string copied from the
+     project's **Connect** dialog. Select the pooled connection option for
+     Vercel.
+   - `OPENROUTER_API_KEY` — your OpenRouter API key.
+   - `OPENROUTER_MODEL` — optional; defaults to
+     `nvidia/nemotron-3.5-lightning:free`.
+4. Save the settings and deploy/redeploy. Vercel serves `public/` as static
+   assets and runs the Flask application as a Python Function. Verify the
+   deployment by opening its URL and creating a note. The database tables are
+   created automatically when the function starts.
+
+Vercel's filesystem is not persistent, so `DATABASE_URL` is required there;
+the app deliberately fails at startup instead of silently using ephemeral
+SQLite. Configure the variables in Vercel itself—do not upload the local
+`.env` file.
+
+For local testing with Neon, put its connection string in the ignored root
+`.env` as `DATABASE_URL=...`, then restart the app. When `DATABASE_URL` is set,
+the app connects to Neon instead of the local SQLite database. Verify
+persistence by creating a note, restarting the app, and confirming the note
+still appears. Do not share or commit the connection string.
 
 ## 📡 API Endpoints
 
@@ -172,7 +212,7 @@ The application is configured for easy deployment with:
 - CORS enabled for cross-origin requests
 - Host binding to `0.0.0.0` for external access
 - Production-ready Flask configuration
-- Persistent SQLite database
+- Neon PostgreSQL configured through `DATABASE_URL`
 
 ## 🔧 Configuration
 
@@ -227,4 +267,4 @@ Potential improvements for future versions:
 
 ---
 
-**Built with ❤️ using Flask, SQLite, and modern web technologies**
+**Built with ❤️ using Flask, SQLAlchemy, and modern web technologies**
